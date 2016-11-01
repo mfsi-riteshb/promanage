@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <meta charset="UTF-8">
+      <title>Document</title>
+      {%load static %}
+      <link rel="stylesheet" href="{% static 'app/style.css' %}">
+      <script src="{% static 'app/script.js' %}"></script>
+      <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+   </head>
+   <body id="profile">
+      <div class="container" >
+         <div class="row">
+            <div classs="row">
+            <div class="col-md-10  toppad  pull-right col-md-offset-3 ">
+               <a href="edit.html" >Edit Profile</a>
+               <a href="{% url 'app:logout' %}" >Logout</a>
+               <a href="{% url 'app:change-password' %}" >Change Password</a>
+               <br>
+               <p class=" text-info">May 05,2014,03:00 pm </p>
+            </div>
+            </div>
+            <div class="row">
+            <div class="col-xs-12 col-sm-12 col-md-10 col-lg-10 col-xs-offset-0 col-sm-offset-0 col-md-offset-1 col-lg-offset-1 toppad" >
+               <div class="panel panel-info">
+                  <div class="panel-heading">
+                     <h3 class="panel-title">{{user.first_name}} {{user.last_name}}</h3>
+                  </div>
+                  <div class="panel-body">
+                     <div class="row">
+                        <div class="col-md-3 col-lg-3 " align="center"> <img alt="User Pic" src="http://babyinfoforyou.com/wp-content/uploads/2014/10/avatar-300x300.png" class="img-circle img-responsive"> </div>
+                        <!--<div class="col-xs-10 col-sm-10 hidden-md hidden-lg"> <br>
+                           <dl>
+                             <dt>DEPARTMENT:</dt>
+                             <dd>Administrator</dd>
+                             <dt>HIRE DATE</dt>
+                             <dd>11/12/2013</dd>
+                             <dt>DATE OF BIRTH</dt>
+                                <dd>11/12/2013</dd>
+                             <dt>GENDER</dt>
+                             <dd>Male</dd>
+                           </dl>
+                           </div>-->
+                        <div class=" col-md-9 col-lg-9 ">
+                           <table class="table table-user-information">
+                              <tbody>
+                                 <tr>
+                                    <td>Department:</td>
+                                    <td>Programming</td>
+                                 </tr>
+                                 <tr>
+                                    <td>Joining Date:</td>
+                                    <td>{{user.date_joined}}</td>
+                                 </tr>
+                                 <tr>
+                                    <td>Date of Birth</td>
+                                    <td>{{profile.dob}}</td>
+                                 </tr>
+                                 <tr>
+                                 <tr>
+                                    <td>Gender</td>
+                                    <td>{{profile.gender}}</td>
+                                 </tr>
+                                 <tr>
+                                    <td>Home Address</td>
+                                    <td>{{profile.home_address}}</td>
+                                 </tr>
+                                 <tr>
+                                    <td>Email</td>
+                                    <td><a>{{user.email}}</a></td>
+                                 </tr>
+                                 <td>Phone Number</td>
+                                 <td>{{profile.phone}}
+                                 </td>
+                                 </tr>
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+            </div>
+            <div class="row">
+            <div class="col-xs-12 col-sm-12 col-md-10 col-lg-10 col-xs-offset-0 col-sm-offset-0 col-md-offset-1 col-lg-offset-1 toppad" >
+               <div class="panel panel-info">
+                  <div class="panel-heading">
+                     <h3 class="panel-title">Education</h3>
+                  </div>
+                  <div class="panel-body">
+                     <div class="row">
+                        
+                   
+                        <div class=" col-md-12 col-lg-12 ">
+                           <table class="table table-user-information">
+                              <tbody>
+                              {% for education in educations%}
+                              <tr>
+                                 <td>
+                                  <h1>{{education.name}}</h1>
+                                  <p>{{education.board}}</p>
+                                  <p>{{education.passing_year}}</p>
+                                  <p>{{education.percentage}}</p>
+                                  </td>
+                                 </tr>
+                                 <tr>
+                              {%endfor%}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+            </div>
+             <div class="row">
+            <div class="col-xs-12 col-sm-12 col-md-10 col-lg-10 col-xs-offset-0 col-sm-offset-0 col-md-offset-1 col-lg-offset-1 toppad" >
+               <div class="panel panel-info">
+                  <div class="panel-heading">
+                     <h3 class="panel-title">Skills</h3>
+                  </div>
+                  <div class="panel-body">
+                     <div class="row">
+                        
+                   
+                        <div class=" col-md-12 col-lg-12 ">
+                     
+                        {% for skill in skills%}
+                          <span class="singleskill">{{skill}}</span>
+                        {%endfor%}
+                       
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+            </div>
+
+             <div class="row">
+            <div class="col-xs-12 col-sm-12 col-md-10 col-lg-10 col-xs-offset-0 col-sm-offset-0 col-md-offset-1 col-lg-offset-1 toppad" >
+               <div class="panel panel-info">
+                  <div class="panel-heading">
+                     <h3 class="panel-title">Project</h3>
+                  </div>
+                  <div class="panel-body">
+                     <div class="row">
+                        
+                   
+                        <div class=" col-md-12 col-lg-12 ">
+                        <ul>
+                           {%for project in projects%}
+                              <li> {{project.description}}
+                                   {%if project.url%}
+								      ({{project.url}})
+                                   {%endif%}
+                               </li>    
+                           {%endfor%}
+                           
+                           </ul>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+            </div>
+
+           
+
+         </div>
+      </div>
+   </body>
+</html>
