@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<title>Document</title>
-</head>
-<body>
-	<form action="/your-name/" method="post">
+   <head>
+      <meta charset="UTF-8">
+      <title>Document</title>
+      {%load static %}
+      <link rel="stylesheet" href="{% static 'app/style.css' %}">
+      <script src="{% static 'app/script.js' %}"></script>
+      <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+   </head>
+   <body id="profile">
+     <form action="/your-name/" method="post">
     {% csrf_token %}
     {{ form }}
     <input type="submit" value="Submit" />
-</form>
-</body>
+   </body>
 </html>

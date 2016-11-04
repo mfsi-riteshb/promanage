@@ -1,198 +1,316 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from .models import Profile,Education,Skills,Project
+from .models import Profile, Education, Skills, Project
 import smtplib
 from django.contrib import messages
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
 from django.utils.crypto import get_random_string
-from .forms import EducationForm
+from .forms import ( 
+    EducationForm, RegisterForm, ChangePasswordForm,
+    MyPasswordResetForm, MySetPasswordForm, MyPasswordChangeForm
+    )
+from django.contrib.auth import views
+from django.views import View
+from django.contrib.auth.tokens import ( PasswordResetTokenGenerator,
+                                         default_token_generator
+                                        )
+from django.contrib.auth.mixins import LoginRequiredMixin,UserPassesTestMixin
+
+from django.core.urlresolvers import reverse
+from django.contrib.auth.views import (
+    password_reset, password_reset_done, password_reset_confirm, 
+    password_reset_complete
+    )
+from django.contrib.auth import views as auth_views
+
 # Create your views here.
 
 
-def app_login(request):
-    if request.method == 'GET':
-        if request.user.is_authenticated:
-            return redirect('app:dashboard')
-        else:
-            return render(request, 'login.html')
+class LoginView(View):
 
-    elif request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        try:
-            user = User.objects.get(username=username)
+    """
+    This Class handles the GET/POST Request of Login Task
+    """
+
+    template_name = "login.html"
+    redirect_url = "app:dashboard"
+
+    def get(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect(self.redirect_url)
+        else:
+            return render(request, self.template_name)
+
+    def post(self, request, *args, **kwargs):
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+        user = authenticate(username=username, password=password)
+        if user is not None:
             if user.is_active:
-                user = authenticate(username=username, password=password)
-                if user is None:
-                    return render(request, 'login.html', {'error': True, 'message': 'Please Provide Correct Username and Password'})
-                else:
-                    login(request, user)
-                    return redirect('app:dashboard')
+                return views.login(request, template_name=self.template_name)
             else:
-                return render(request, 'login.html', {'error': True, 'message': 'Please Verify Account First on email ' + user.email + ''})
-        except:
-            return render(request, 'login.html', {'error': True, 'message': 'Please Provide Correct Username and Password'})
+                return render(request, 'login.html', 
+                              {'error': True, 'message': 'Please Verify Account\
+                               First on email ' + user.email + ''})
+        else:
+            return render(request, 'login.html', {'error': True, 
+                          'message': 'Please\Provide Correct Username and Password'})
 
 
-def app_register(request):
-    if request.method == 'GET':
+class RegisterView(View):
+
+    """
+    This class handles POST/GET request for User Registration Task
+    """
+
+    template_name = "register.html"
+    form = RegisterForm()
+
+    def get(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             return redirect('app:dashboard')
         else:
-            return render(request, 'register.html',{'error': False, 'message': ''})
+            print(self.form)
+            return render(request, self.template_name, {'form': self.form})
 
-    elif request.method == 'POST':
+    def post(self, request, *args, **kwargs):
         username = request.POST.get('username')
         password = request.POST.get('password')
         email = request.POST.get('email')
-        first_name=request.POST.get('firstname')
-        last_name=request.POST.get('lastname');
-        if username=='' or password=='' or email=='' or first_name=='':
-            return render(request, 'register.html', {'error': True, 'message': 'Please Fill All the Details'})
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        register_form = RegisterForm(request.POST)
+        print(register_form.is_valid())
+        if not register_form.is_valid():
+            print(register_form.errors)
+            return render(request, self.template_name, {'form': register_form})
+        user = User.objects.create_user(username, email, password)
+        user.is_active = False
+        user.first_name = first_name
+        user.last_name = last_name
+        user.save()
+        activation_key = get_random_string(length=30)
+        profile = Profile.objects.create(
+            activation_key=activation_key, user=user)
+        send_email(activation_key, email)
+        messages.add_message(request, messages.INFO, 
+                            'User Created Successfully.Verification \
+                            Link sent to ' + user.email + ' .')
+        return render(request, self.template_name, {'form': self.form})
+
+
+class PasswordChangeView(View):
+
+    """
+    This Class handle GET/POST Request for changing password
+    """
+
+    template_name = 'password_change_form.html'
+
+    def get(self, request, *args, **kwargs):
+        return auth_views.password_change(request,template_name=self.template_name,
+                                          post_change_redirect="app:password_change_done",
+                                          password_change_form=MyPasswordChangeForm,
+                                          current_app=None,
+                                          extra_context=None)
+
+    def post(self, request, *args, **kwargs):
+        return auth_views.password_change(request, template_name=self.template_name,
+                                          post_change_redirect="app:password_change_done",
+                                          password_change_form=MyPasswordChangeForm, current_app=None,
+                                          extra_context=None)
+
+
+class PasswordChangeDoneView(View):
+
+    """
+    This Class handles the GET Request To display success of Password change
+    """
+
+    template_name = 'password_change_done.html'
+
+    def get(self, request, *args, **kwargs):
+        return auth_views.password_change_done(request,
+                                               template_name=self.template_name,
+                                               current_app=None, extra_context=None)
+
+
+class PasswordResetView(UserPassesTestMixin,View):
+
+    """
+    This Class handles the GET?POST Request To handle Password Reset and sending mail to emailid.
+    """
+    login_url="app:login"
+    template_name = 'password_reset.html'
+    form = MyPasswordResetForm
+
+    def test_func(self):
+        return  not self.request.user.is_authenticated
+
+    def get(self, request, *args, **kwargs):
+         return auth_views.password_reset(request, template_name=self.template_name,
+                                         email_template_name="password_reset_email.html",   
+                                         password_reset_form=MyPasswordResetForm,
+                                         post_reset_redirect="app:password_reset_done")
+
+    def post(self, request, *args, **kwargs):
+        return auth_views.password_reset(request, template_name=self.template_name,
+                                        email_template_name="password_reset_email.html",   
+                                        password_reset_form=MyPasswordResetForm,
+                                        post_reset_redirect="app:password_reset_done")
+
+
+class PasswordResetDoneView(View):
+
+    """
+    This Class handles the GET Request To display PAssword Link Successfully sent page.
+    """
+    template_name='password_reset_done.html'
+    def get(self, request, *args, **kwargs):
+        return auth_views.password_reset_done(request, template_name=self.template_name,
+                                              current_app=None, extra_context=None)
+
+
+class PasswordResetConfirmView(View):
+
+    """
+    This Class handles get/post request,display form and handle setting new password.
+    """
+
+    template_name = 'password_reset_confirm.html'
+
+    def get(self, request, *args, **kwargs):
+        return auth_views.password_reset_confirm(request, uidb64=self.kwargs['uidb64'],
+                                                token=self.kwargs['token'], 
+                                                template_name=self.template_name,
+                                                token_generator=default_token_generator,
+                                                set_password_form=MySetPasswordForm,
+                                                post_reset_redirect="app:password_reset_complete", 
+                                                current_app=None, extra_context=None)
+
+    def post(self, request, *args, **kwargs):
+        return auth_views.password_reset_confirm(request, uidb64=self.kwargs['uidb64'],
+                                                token=self.kwargs['token'], 
+                                                template_name=self.template_name,
+                                                token_generator=default_token_generator, 
+                                                set_password_form=MySetPasswordForm,
+                                                post_reset_redirect="app:password_reset_complete", 
+                                                current_app=None, extra_context=None)
+
+
+class PasswordResetCompleteView(View):
+
+    """
+    This Class handles GET Request and display password changed successfully
+    """
+
+    template_name = 'password_reset_complete.html'
+
+    def get(self, request, *args, **kwargs):
+        print("hello")
+        return password_reset_complete(request,
+                                       template_name=self.template_name,
+                                       current_app=None, extra_context=None)
+
+
+
+class LogoutView(View):
+    """
+    This class Handle  Request for logout 
+    """
+    def get(self, request, *args, **kwargs):
+        views.logout(request, next_page="app:login")
+        return redirect('app:login')
+
+
+class DashBoardView(LoginRequiredMixin, View):
+
+    """
+    This Class Handles the GET Request  for displaying profile page
+    """
+
+    login_url = '/login'
+    redirect_field_name = None
+    template_name = "profile.html"
+
+    def get(self, request, *args, **kwargs):
+        profile = Profile(user=request.user)
+        educations = Education.objects.filter(profile=profile)
+        skills = Skills.objects.filter(profile=profile)
+        projects = Project.objects.filter(profile=profile)
+        return render(request, self.template_name, {'profile': profile, 
+                      'user': request.user, 'skills': skills, 'projects':
+                       projects, "educations": educations})
+
+
+
+class AccountVerifyView(View):
+
+    """
+    This Class Handle GET Request for verification of account.
+    """
+
+    def get(self, request, *args, **kwargs):
         try:
-            user = User.objects.get(email=email)
-            if user is not None:
-                return render(request, 'register.html', {'error': True, 'message': 'Email Aready Taken'})
-        except:
-            try:
-                user = User.objects.create_user(username, email, password)
-                user.is_active = False
-                user.first_name=first_name
-                user.lastname=last_name
+            profile = Profile.objects.get(activation_key=self.kwargs['activation_key'])
+            user = profile.user
+            if user.is_active == False:
+                user.is_active = True
                 user.save()
-                activation_key = get_random_string(length=30)
-                profile = Profile.objects.create(activation_key=activation_key,user=user);
-                send_email(activation_key,email,1)
-                return render(request, 'register.html', {'error': True, 'message': 'User Created Successfully.Verification Link sent to ' + user.email + ' .'})
-            except Exception as e:
-                print(e)
-                return render(request, 'register.html', {'error': True, 'message': 'Username Already Taken'})
-            else:
-                return render(request, 'register.html', {'error': True, 'message': 'Email Aready Taken'})
-
-
-def app_forgot_password(request):
-    if request.method == 'GET':
-        if request.user.is_authenticated:
-            return redirect('app:dashboard')
-        else:
-            return render(request, 'forgot-password.html')
-    elif request.method== 'POST':
-        email=request.POST.get('fp_email')
-        try:
-            user=User.objects.get(email=email)
-            try:
-                newpass=get_random_string(length=8)
-                user.set_password(newpass)
-                user.save()
-                send_email(newpass,user.email,2)
-                return render(request,'forgot-password.html',{'error':True,'message':'Your Password Has been Succuessfully\
-                    registred and has been sent to your registered Email'});
-            except Exception as e:
-                print(e)
-        except:
-            return render(request,'forgot-password.html',{'error':True,'message':'Email Not Registered With us'});
-
-def app_change_password(request):
-    if request.method=='GET':
-        return render(request,'change-password.html')
-    if request.method=='POST':
-        current_password=request.POST.get("current_password")
-        new_password=request.POST.get("new_password")
-        confirm_password=request.POST.get("confirm_password")
-        if current_password=='' or new_password=='' or confirm_password=='':
-            return render(request,'change-password.html',{'error':True,'message':'Please Provide All The Details'})
-        elif new_password!=confirm_password:
-            return render(request,'change-password.html',{'error':True,'message':'Password Do Not Match'})
-        elif len(new_password)<=6:
-            return render(request,'change-password.html',{'error':True,'message':'Password Length Should be Greater than 6'})
-        else:
-            user=authenticate(username=request.user.username,password=current_password)
-            if user is not None:
-                print(new_password)
-                user.set_password(new_password)
-                user.save();
-                return render(request,'change-password.html',{'error':True,'message':'Password Changed Successfully'})
-            else:
-                return render(request,'change-password.html',{'error':True,'message':'Please Provide Correct Password'})
-
-
-
-
-
-def app_logout(request):
-    logout(request)
-    return redirect('app:login')
-
-
-def app_dashboard(request):
-    if request.method == 'GET':
-        if request.user.is_authenticated:
-            profile=Profile(user=request.user)
-            educations=Education.objects.filter(profile=profile)
-            skills=Skills.objects.filter(profile=profile)
-            projects=Project.objects.filter(profile=profile)
-            # educations=[{"name":"Xth","board":"CBSE","passing_year":"2010","percentage":80},{"name":"XIIth","board":"CBSE","passing_year":"2012","percentage":84},
-            # {"name":"B.Tech","board":"IPU","passing_year":"2010","percentage":73}]
-            # skills=['C','C++','Java','Mysql'];
-            # projects=[{"description":"this is project1","url":"thisis url1"},{"description":"this is project1","url":"thisis url1"}]
-            return render(request, 'profile.html',{'profile':profile,'user':request.user,'skills':skills,'projects':projects,"educations":educations})
-        else:
-            return redirect('app:login')
-
-def app_verify(request,activation_key):
-    if request.method=='GET':
-        try:
-            profile=Profile.objects.get(activation_key=activation_key)
-            user=profile.user
-            if user.is_active==False:
-                user.is_active=True
-                user.save();
-                messages.add_message(request,messages.INFO,"You have been Successfully verified.Please Login To Continue")
+                messages.add_message(
+                    request, messages.INFO, "You have been Successfully verified\
+                    .Please Login To Continue")
                 return redirect('app:login')
             else:
-                messages.add_message(request,messages.INFO,'You have been already Verified.This Link Expires')
+                messages.add_message(
+                    request, messages.INFO, 'You have been already Verified.This\
+                     Link Expires')
                 return redirect('app:login')
         except Exception as e:
-            messages.add_message(request,messages.INFO,"Please Register Youself First")
+            messages.add_message(request, messages.INFO,
+                                 "Please Register Youself First")
             return redirect('app:register')
+       
+
+
+class EditProfileView(View):
+    
+    def get(self, request, *args, **kwargs):
+        form = EducationForm()
+        return render(request, 'edit-profile.html', {'form': form})
+
+    def post(self, request, *args, **kwargs):
+        pass
 
 
 
-
-
-def send_email(activation_key_or_newpass,email,task):
-
+def send_email(activation_key, email):
 
     to = email
     gmail_user = 'ritesh.bisht94@gmail.com'
     gmail_pwd = 'everythingis4me'
-    smtpserver = smtplib.SMTP("smtp.gmail.com",587)
+    smtpserver = smtplib.SMTP("smtp.gmail.com", 587)
     smtpserver.ehlo()
     smtpserver.starttls()
     smtpserver.ehlo
     smtpserver.login(gmail_user, gmail_pwd)
-    header = 'To:' + to + '\n' + 'From: ' + 'ritesh.bisht94@gmail.com'+ '\n' + 'Subject:testing \n'
+    header = 'To:' + to + '\n' + 'From: ' + \
+        'ritesh.bisht94@gmail.com' + '\n' + 'Subject:testing \n'
     msg = MIMEMultipart('alternative')
     msg['Subject'] = "ProManage Verification Link"
     msg['From'] = "noreply@coronabpit.com"
     msg['To'] = to
-    # Create the body of the message (a plain-text and an HTML version).
-    if task==1:
-        text = "Please Verify Your Accoutn on this link <a href='127.0.0./verify/"+activation_key+"'>Verify Your Account</a>"
-       
-    elif task==2:
-        text="Your new Password is "+activation_key_or_newpass;
+  
+    text = "Please Verify Your Accoutn on this link <a href='127.0.0.1/verify/" + \
+    activation_key + "'>Verify Your Account</a>"
+
     part1 = MIMEText(text, 'html')
     msg.attach(part1)
 
     smtpserver.sendmail(gmail_user, to, msg.as_string())
     smtpserver.close()
 
-def app_edit_profile(request):
-    if request.method=='GET':
-        form=EducationForm()
-        return render(request, 'edit-profile.html', {'form': form})
+
