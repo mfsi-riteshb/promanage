@@ -29,7 +29,7 @@ class Education(models.Model):
 
 class Skills(models.Model):
 
-    name = models.CharField(max_length=30)
+    name = models.CharField(max_length=30,unique=True)
     profile = models.ManyToManyField(Profile)
 
 

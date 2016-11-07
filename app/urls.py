@@ -10,6 +10,8 @@ from .views import (
 from django.contrib.auth import views as auth_views
 
 app_name = "app"
+
+
 urlpatterns = [
     url(r'^login/$', LoginView.as_view(), name='login'),
     url(r'^register/$', RegisterView.as_view(), name='register'),
@@ -29,3 +31,4 @@ urlpatterns = [
     url(r'^verify/(?P<activation_key>[A-Za-z0-9]*)/$',
         views.AccountVerifyView.as_view(), name='verify'),
 ]
+

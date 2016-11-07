@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from .models import Profile, Education, Skills, Project
-import smtplib
+from django.core.mail import send_mail
 from django.contrib import messages
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -95,7 +95,9 @@ class RegisterView(View):
         activation_key = get_random_string(length=30)
         profile = Profile.objects.create(
             activation_key=activation_key, user=user)
-        send_email(activation_key, email)
+        text = "Please Verify Your Accoutn on this link <a href='127.0.0.1/verify/" + \
+        activation_key + "'>Verify Your Account</a>"
+        user.email_user("Please verify Your account",text,"Promanage");
         messages.add_message(request, messages.INFO, 
                             'User Created Successfully.Verification \
                             Link sent to ' + user.email + ' .')
@@ -237,8 +239,9 @@ class DashBoardView(LoginRequiredMixin, View):
     template_name = "profile.html"
 
     def get(self, request, *args, **kwargs):
-        profile = Profile(user=request.user)
+        profile = Profile.objects.get(user=request.user)
         educations = Education.objects.filter(profile=profile)
+        print(list(educations))
         skills = Skills.objects.filter(profile=profile)
         projects = Project.objects.filter(profile=profile)
         return render(request, self.template_name, {'profile': profile, 
@@ -285,32 +288,5 @@ class EditProfileView(View):
     def post(self, request, *args, **kwargs):
         pass
 
-
-
-def send_email(activation_key, email):
-
-    to = email
-    gmail_user = 'ritesh.bisht94@gmail.com'
-    gmail_pwd = 'everythingis4me'
-    smtpserver = smtplib.SMTP("smtp.gmail.com", 587)
-    smtpserver.ehlo()
-    smtpserver.starttls()
-    smtpserver.ehlo
-    smtpserver.login(gmail_user, gmail_pwd)
-    header = 'To:' + to + '\n' + 'From: ' + \
-        'ritesh.bisht94@gmail.com' + '\n' + 'Subject:testing \n'
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = "ProManage Verification Link"
-    msg['From'] = "noreply@coronabpit.com"
-    msg['To'] = to
-  
-    text = "Please Verify Your Accoutn on this link <a href='127.0.0.1/verify/" + \
-    activation_key + "'>Verify Your Account</a>"
-
-    part1 = MIMEText(text, 'html')
-    msg.attach(part1)
-
-    smtpserver.sendmail(gmail_user, to, msg.as_string())
-    smtpserver.close()
 
 
